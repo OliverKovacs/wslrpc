@@ -1,6 +1,10 @@
 {
-    "enable": true,
-    "hideTimestamp": false,
-    "hideLargeImage": false,
-    "hideSmallImage": false
+    "clientId": "748970741013151807",
+    "on": true,
+    "overwriteDetails": false,
+    "showTimestamp": true,
+    "showLargeImage": true,
+    "overwriteLargeImageText": false,
+    "showSmallImage": false,
+    "overwriteSmallImageText": false
 }

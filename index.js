@@ -1,45 +1,43 @@
 // Oliver Kovacs 2020
 // wslrpc - index.js
 
-const { exec } = require("child_process");
-const { Client } = require("discord-rpc");
+const cp = require("child_process");
 const config = require("./config.json");
 
-const rpc = new Client({ transport: "ipc" });
-const clientId = "748970741013151807";
-let WinVersion, WSLVersion;
+const execAsync = cmd => {
+    return new Promise((resolve, reject) => {
+        cp.exec(cmd, (err, stdout, stderr) => {
+            if (err) return reject(err);
+            resolve(stdout);
+        });
+    });
+};
 
-exec("systeminfo", (err, stdout, stderr) => {
-    if (!config.enable) return;
-    if (err) return console.error(`Exec error: ${err}`);
-
-    WinVersion = stdout.match(/OS Name:\s*Microsoft [\w\s]*\r\n/)[0].split(":")[1].replace(/\s*Microsoft\s/, "").slice(0, -2);
-    WSLVersion = Object.fromEntries(process.argv[2].replace(/"/g, "").split(/\n|\r\n/).map(line => line.split("=")));
-    WSLVersion.NAME = WSLVersion.NAME.split(" ")[0];
-
-    rpc.login({ clientId });
-});
-
-rpc.on("ready", () => {
-
-    let RPCObject = {
-        details: `${WSLVersion.NAME || WSLVersion.DISTRIB_ID} WSL${process.argv[3] || 2}`,
-    }
-    
-    if (!config.hideTimestamp) {
+const createRPCObject = (WinVersion, WSLVersion) => {
+    let RPCObject = {};
+    RPCObject.details = config.overwriteDetails || `${WSLVersion.NAME || WSLVersion.DISTRIB_ID} WSL${2}`;
+    if (config.showTimestamp) {
         RPCObject.startTimestamp = new Date();
     }
-    if (!config.hideLargeImage) {
+    if (config.showLargeImage) {
         RPCObject.largeImageKey = (WSLVersion.NAME || WSLVersion.DISTRIB_ID).toLowerCase();
-        RPCObject.largeImageText = `${WSLVersion.NAME || WSLVersion.DISTRIB_ID} ${WSLVersion.DISTRIB_RELEASE || WSLVersion.VERSION || WSLVersion.VERSION_ID}`;
+        RPCObject.largeImageText = config.overwriteLargeImageText || `${WSLVersion.NAME || WSLVersion.DISTRIB_ID} ${WSLVersion.DISTRIB_RELEASE || WSLVersion.VERSION || WSLVersion.VERSION_ID}`;
     }
-    if (!config.hideSmallImage) {
+    if (config.showSmallImage) {
         RPCObject.smallImageKey = "windows";
-        RPCObject.smallImageText = WinVersion;
+        RPCObject.smallImageText = config.overwriteSmallImageText || WinVersion;
     }
+    return RPCObject;
+}
 
-    rpc.setActivity(RPCObject);
-
-    const { username, discriminator } = rpc.user;
-    console.log(`RPC user: ${username}#${discriminator}`);
-});
+(async () => {
+    if (!config.on) return;
+    let sysinfo = execAsync(`node.exe sysinfo.js`);
+    let release = execAsync("cat /etc/*-release");
+    let WinVersion = (await sysinfo).match(/OS Name:\s*Microsoft [\w\s]*\r\n/)[0].split(":")[1].replace(/\s*Microsoft\s/, "").slice(0, -2);
+    let WSLVersion = Object.fromEntries((await release).replace(/"/g, "").split(/\n|\r\n/).map(line => line.split("=")));
+    WSLVersion.NAME = WSLVersion.NAME.split(" ")[0];
+    
+    const RPCObject = createRPCObject(WinVersion, WSLVersion);
+    cp.spawn("node.exe", [ `${__dirname}/windows.js`, JSON.stringify(RPCObject) ]);
+})().catch(error => console.error(error));
